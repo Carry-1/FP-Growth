@@ -49,7 +49,7 @@ vector<string> split(const string& str, const string& delim) //将输入字符�
 }
 
 vector<vector<int> > Read(){ //读取txt文件，处理成一个vector<vector<int>>--二维整型数组，用于Apriori(...)函数的输入
-    ifstream Infile("data.txt");
+    ifstream Infile("E:/Personal Blog/data-mining-labs/Lab-2nd/test.txt");
     vector<string> vec_str; //vec_str数组用于存储从data.txt文件中读取的每一行的内容--每一行的内容都是字符串
     vector<vector<string> > vec_substr; //vec_substr数组用于存储对vec数组中每一行分割过后的内容
     vector<vector<int> > vec_result;  //vec2用于存储将vec_substr中每个字符串转换为对应整数的形式
@@ -80,7 +80,7 @@ vector<vector<int> > Read(){ //读取txt文件，处理成一个vector<vector<in
     return vec_result;
 }
 
-void Insert_Tree(const set<int, greater<int>>& transaction,  item_head_table& table, FPTreePointer T )
+void Insert_Tree(const vector<int>& transaction,  item_head_table& table, FPTreePointer T )
 {
     if(transaction.size())
     {
@@ -125,16 +125,36 @@ void Insert_Tree(const set<int, greater<int>>& transaction,  item_head_table& ta
             }
         }
         auto ite = transaction.begin();
-        set<int, greater<int> > subtransaction(++ite, transaction.end());
+        vector<int> subtransaction(++ite, transaction.end());
         Insert_Tree(subtransaction, table, child);
     }
 }
-
+vector <pair<int, int> > PairSorting (vector< pair<int, int> >& vec ) // 将输入的pair按second降序排列
+{
+    for(int i=1; i<vec.size(); i++)
+    {       
+        if(vec[i].second>vec[i-1].second) //降序排列,所以是大于号
+        {
+            
+            int temp1 = vec[i].first;
+            int temp2 = vec[i].second;
+            int j = 0;
+            for( j=i-1; j>=0&&temp2 > vec[j].second; j--)
+            {
+                vec[j+1].first = vec[j].first;
+                vec[j+1].second = vec[j].second;
+            }
+            vec[j+1].first = temp1;
+            vec[j+1].second = temp2;
+        }  
+    }
+    return vec;
+}
  tree_and_table Build_FP_Tree(const vector<vector<int> >& Transaction_DataBase, double minsupport){ //生成FP-Tree以及对应的项头表
     //第一步：生成Transaction_DataBase的所有频繁1项集的集合，得到它们的支持度计数，并按降序排序
     unordered_set<int> s;
     unordered_multiset<int> s1;
-    set<int, greater<int> > s2;   //按降序存储所有的频繁1项集
+    vector< pair<int,int> > s2;   //按降序存储所有的频繁1项集, 每个pair都是item和对应的支持度
     item_head_table table; //项头表，输入Transaction_DataBase的所有频繁1项集
     FPTreePointer NULL_Node = new FPTree;  //null 节点
     NULL_Node->val = 0; //初始化
@@ -144,7 +164,7 @@ void Insert_Tree(const set<int, greater<int>>& transaction,  item_head_table& ta
     NULL_Node->support_count = 0;
 
     vector< unordered_set<int> > VecInput; //将输入事务数据库转换为哈希表数组
-    vector< set<int, greater<int> > > cast_database;
+    vector< vector<int> > cast_database;
 
     for(int i=0; i<Transaction_DataBase.size(); i++) //将输入的VecInput的每一行转换为哈希set，便于查找
     {
@@ -165,24 +185,29 @@ void Insert_Tree(const set<int, greater<int>>& transaction,  item_head_table& ta
     
     for(auto ite = s.begin(); ite!=s.end(); ite++) //生成项头表，但此时项头表中每一项的链接指针仍为空
     {
-        if ((double)s1.count(*ite)/Transaction_DataBase.size() >= minsupport )
+        if ((double)s1.count(*ite) >= minsupport )
         {
 
-            s2.insert(*ite);
+            s2.push_back(make_pair(*ite, s1.count(*ite)));
             table.insert(make_pair(*ite, make_pair(s1.count(*ite), nullptr))); //在项头表中插入新的一项
            
         }         
     }
 
+/*
+对s2排序，生成降序的频繁1项集
+*/
+    s2 = PairSorting(s2);   //此时的s2已经是降序的频繁1项集
+
     //生成投影事务数据库
     for(int i = 0; i<VecInput.size(); i++)
     {
-        cast_database.push_back(set<int, greater<int> >());
-        for(auto ite = s2.begin(); ite!= s2.end(); ite++) //按顺序对频繁1项集中的每一项
+        cast_database.push_back({}); //对投影数据库新增一行
+        for(int j=0; j<s2.size(); j++) //对输入事务数据库的每一条事务分别处理
         {
-            if(VecInput[i].count(*ite))
+            if(VecInput[i].count(s2[j].first))  //若在事务VecInput[i]中有频繁项s2[j]。first
             {
-                cast_database[cast_database.size()-1].insert(*ite);
+                cast_database[cast_database.size()-1].push_back(s2[j].first); //在投影事务数据库的最后一条事务中新增一项
             }
         }
     }
@@ -274,7 +299,7 @@ vector<vector<int>> FP_Growth(vector<vector<int>> & L, const tree_and_table& tr_
         item_head_table table = tr_and_ta.second;
         vector<vector<int>> tbl;  //它是一个二维数组，第一列保存item，第二列保存支持度
         for(auto ite = table.begin(); ite!=table.end(); ite++)
-        {
+        { 
             tbl.push_back({});
             tbl[tbl.size()-1].push_back(ite->first);
             tbl[tbl.size()-1].push_back(ite->second.first); 
@@ -302,7 +327,7 @@ vector<vector<int>> FP_Growth(vector<vector<int>> & L, const tree_and_table& tr_
             vector<vector<int>> sub_transaction_data_base;
             for(int i=0; i<condition_pattern_base.size(); i++) //遍历所有的条件模式基，注意：一个条件模式基可能生成多条事务
             {
-                FPTreePointer p = condition_pattern_base[i];
+                FPTreePointer p = condition_pattern_base[i]->parent;
                 sub_transaction_data_base.push_back({});
                 while(p->val!=0) //Null结点的val为0
                 {
@@ -334,13 +359,13 @@ vector<vector<int>> FP_Growth(vector<vector<int>> & L, const tree_and_table& tr_
 int main()
 {
     vector<vector<int> > Transaction_DataBase; 
-    double minsupport = 0.2;
+    double minsupport = 2;
     Transaction_DataBase = Read(); //生成初始事务数据库
 
     tree_and_table TreeAndTable; 
     TreeAndTable = Build_FP_Tree(Transaction_DataBase, minsupport); //建立初始FP_Tree
     vector<vector<int>> L; //用于存储所有的频繁模式
-    vector<int> postfix_pattern;  //初始频繁模式为空
+    vector<int> postfix_pattern({});  //初始频繁模式为空
     L = FP_Growth(L, TreeAndTable,  postfix_pattern, minsupport); //调用FP_Growth算法
     
     return 1;
